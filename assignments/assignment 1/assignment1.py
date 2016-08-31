@@ -1,5 +1,6 @@
 import numpy as np
 from math import pi
+from packages import xlrd
 
 
 def ass1_1_1():
@@ -81,6 +82,14 @@ def ass1_1_2():
     print()
 
 
+def ass1_2_1():
+    filename = 'data/nanonose.xls'
+    workbook = xlrd.open_workbook(filename)
+    sheet = workbook.sheet_by_index(1)
+    print(sheet.col_values(6))
+
+
 if __name__ == '__main__':
-    ass1_1_1()
-    ass1_1_2()
+    # ass1_1_1()
+    # ass1_1_2()
+    ass1_2_1()
