@@ -3,11 +3,15 @@ import requests
 from threading import Thread
 from time import sleep
 import json
+import os.path
 
 
 TESTED_URLS = set()
 WAITLIST_URLS = set()
 TERMINATE = False
+DATABASE_FILE = 'data/database_raw02.json'
+DATABASE = dict()  # dict with molecules as keys. Molecule values are also dicts, with properties from the
+# wikipedia info table as keys.
 
 
 def get_initial_urls():
@@ -35,24 +39,36 @@ def get_initial_urls():
 def get_info_table(page):
     for table in page.get_elements('table'):
         is_info_table = True
-        for tag_name in ['Names', 'Identifiers', 'Properties']:  # todo: exclude Names
-            if tag_name not in table.to_text():
+        for tag_name in ['Identifiers', 'Properties']:
+            if tag_name not in str(table):
                 is_info_table = False
         if is_info_table:
             return table
 
 
 def parse_info_table(info_table):
-    # todo: parse single line values (i.e.: SMILES)
     for row in info_table:
-        try:
-            row.remove('sup')
-            key = row[0].to_text()
-            # todo: parse list values
-            value = row[1].to_text()
+        key = None
+        value = None
+        row.remove('sup')
+        if len(row) == 2:
+            key = str(row[0])
+            list_element = row[1].get_elements('ul')
+            if list_element:
+                value = list()
+                for item in list_element[0]:
+                    value.append(str(item))
+            else:
+                value = str(row[1])
+        elif len(row) == 1:
+            list_element = row.get_elements('ul')
+            if list_element:
+                value = list()
+                for item in list_element[0]:
+                    value.append(str(item))
+                key = str(row).replace(str(list_element[0]), '')
+        if key and value:
             yield key, value
-        except IndexError:
-            pass
 
 
 def download_page(url):
@@ -70,6 +86,15 @@ def load_data():
         for line in file:
             if line.strip() not in TESTED_URLS:
                 WAITLIST_URLS.add(line.strip())
+    if not os.path.exists(DATABASE_FILE):
+        with open(DATABASE_FILE, 'w') as file:
+            file.write('{}')
+    with open(DATABASE_FILE) as json_file:
+        global DATABASE
+        DATABASE = json.loads(json_file.read())
+    print('number of molecules: ' + str(len(DATABASE)))
+    print('length of waitlist: ' + str(len(WAITLIST_URLS)))
+    print('length of tested urls: ' + str(len(TESTED_URLS)))
 
 
 def page_parser_thread():
@@ -87,8 +112,7 @@ def page_parser_thread():
             table_data = dict()
             for key, value in parse_info_table(info_table):
                 table_data[key] = value
-            with open('data/wiki_data_tables/' + current_url.split('/')[-1] + '.json', 'w') as json_file:
-                json_file.write(json.dumps(table_data, separators=(',', ':'), sort_keys=True, indent=4))
+            DATABASE[current_url.split('/')[-1]] = table_data
 
             wiki_domain = 'https://en.wikipedia.org'
             for link in page.get_elements('a'):
@@ -99,12 +123,12 @@ def page_parser_thread():
                             WAITLIST_URLS.add(wiki_domain + wiki_link)
                 except KeyError:
                     pass
-            print(current_url.split('/')[-1] + ' parsed to json.')
+            print(current_url.split('/')[-1] + ' parsed to database.')
 
 
 def file_update_thread():
     while not TERMINATE:
-        sleep(5)
+        sleep(30)
         with open('data/tested_urls', 'w') as file:
             file_string = ''
             for url in TESTED_URLS.copy():
@@ -115,6 +139,11 @@ def file_update_thread():
             for url in WAITLIST_URLS.copy():
                 file_string += url + '\n'
             file.write(file_string)
+        with open(DATABASE_FILE, 'w') as json_file:
+            json_file.write(json.dumps(DATABASE, separators=(',', ':'), sort_keys=True, indent=4))
+        print('number of molecules: ' + str(len(DATABASE)))
+        print('length of waitlist: ' + str(len(WAITLIST_URLS)))
+        print('length of tested urls: ' + str(len(TESTED_URLS)))
 
 
 def input_thread():
@@ -136,6 +165,8 @@ def run():
 # download_page('https://en.wikipedia.org/wiki/Adenosine_triphosphate')
 # page = htmlparser.parse_from_file('data/downloads/Methane.html')
 # info_table = get_info_table(page)
-# parse_info_table(info_table)
+# for key, value in parse_info_table(info_table):
+#     print('--------')
+#     print(key, '-', value)
 # get_initial_urls()
-# run()
+run()

@@ -1,9 +1,16 @@
 import requests
 
-non_paired_tags = ['area', 'base', 'br', 'col', 'command',
-                   'embed', 'hr', 'img', 'input', 'link',
-                   'meta', 'param', 'source', 'wbr', 'keygen',
-                   'track', 'button']
+non_closing_tag_names = ['area', 'base', 'br', 'col', 'command',
+                         'embed', 'hr', 'img', 'input', 'link',
+                         'meta', 'param', 'source', 'wbr', 'keygen',
+                         'track', 'button']
+
+# \u00b7 : multiplication dot
+# \u200b : nothing (?)
+# \u2212 : minus sign
+# \u00b0 : degrees sign
+# \u00b1 : plusminus sign
+# \u2013 : longer minus sign
 
 
 def parse_from_url(url):
@@ -20,17 +27,30 @@ def parse_from_file(filename):
 
 
 def parse_from_string(html_string):
-    def to_tag_strings(html_str):
-        left_pos = html_str.find('<')
-        while left_pos != -1:
-            right_pos = html_str.find('>', left_pos)
-            if right_pos == -1:
-                raise ValueError('String could not be parsed as HTML text. Last tag has no ending')
-            tag_str = html_str[left_pos+1:right_pos]
-            next_left = html_str.find('<', right_pos)
-            content_str = html_str[right_pos+1:next_left]
-            yield tag_str, content_str
-            left_pos = next_left
+    depth = 0
+    html_page = Element()
+    for token in tokenize(html_string):
+        if token[0] == '<':  # Token is a tag or comment
+            if token[1] == '!':  # Token is a comment
+                continue
+            elif token[1] == '/':  # Token is an end-tag
+                if token[2:-1] not in non_closing_tag_names:
+                    depth -= 1
+            else:  # Token is a start-tag
+                element = parse_tag_token(token)
+                html_page.add(element, depth)
+                if element.name not in non_closing_tag_names:
+                    depth += 1
+        else:  # Token is text
+            html_page.add(token, depth)
+    return html_page
+
+
+def tokenize(html_string):
+    """
+    :param html_string: The HTML string to be tokenized.
+    :return: Yield tag tokens and plain text tokens until end of string. Yielded tag tokens do include the brackets
+    """
 
     # Compress the string to a single line:
     new_string = ''
@@ -38,86 +58,79 @@ def parse_from_string(html_string):
         new_string += line.strip()
     html_string = new_string
 
-    depth = 0
-    open_tags = dict()
-    awaiting_elements = list()
-    for tag_string, plain_text in to_tag_strings(html_string):
-        element = _parse_to_element(tag_string, plain_text)
-
-        if element.name[0] == '/':  # if element is closing tag
-            depth -= 1
-            element.name = element.name[1:]
-            try:
-                starting_element = open_tags[element.name].pop()
-            except KeyError:
-                raise ValueError('String could not be parsed as HTML text. '
-                                 'It contains ending tags without corresponding starting tags')
-            starting_element.depth = depth
-
-            new_awaiting_elements = list()
-            for awaiting_element in awaiting_elements:
-                if awaiting_element.depth > depth:
-                    starting_element.content.append(awaiting_element)
-                else:
-                    new_awaiting_elements.append(awaiting_element)
-            awaiting_elements = new_awaiting_elements
-            awaiting_elements.append(starting_element)
-        else:  # if element is not a closing tag
-            if element.name == '!DOCTYPE':
-                continue
-            if element.paired:
-                depth += 1
-                if element.name in open_tags:
-                    open_tags[element.name].append(element)
-                else:
-                    open_tags[element.name] = [element]
-            else:
-                element.depth = depth
-                awaiting_elements.append(element)
-    return awaiting_elements.pop()
+    # Start yielding tokens:
+    pos_left = html_string.find('<')
+    text_token = html_string[0:pos_left]
+    if text_token:
+        yield text_token.replace('&#160;', ' ').replace('&#160', ' ')
+    while True:
+        pos_right = html_string.find('>', pos_left)
+        tag_token = html_string[pos_left:pos_right+1]
+        yield tag_token
+        if pos_right == -1:
+            raise ValueError('Error during tokenizing of the html string.')
+        pos_left = html_string.find('<', pos_right)
+        if pos_left == -1:  # If end of string
+            text_token = html_string[pos_right+1:]
+            if text_token:
+                yield text_token.replace('&#160;', ' ').replace('&#160', ' ')
+            break
+        text_token = html_string[pos_right+1:pos_left]
+        if text_token:
+            yield text_token.replace('&#160;', ' ').replace('&#160', ' ')
 
 
-def _parse_to_element(tag_string, text=''):
-    attribute_strings = tag_string.split(' ')
+def parse_tag_token(tag_token):
+    # tokenize the token even further:
+    tag_token = tag_token.lstrip('<').rstrip('>')
+    attribute_strings = tag_token.split(' ')
     tag_name = attribute_strings.pop(0)
-
-    if tag_name in non_paired_tags:
-        paired = False
-    else:
-        paired = True
 
     # Parse the attributes of the tag:
     attributes_dict = dict()
     for attribute in attribute_strings:
+        if attribute in ['/']:
+            continue
         try:
             key, value = attribute.split('=', 1)
         except ValueError:
             key, value = attribute, ''
         attributes_dict[key] = value.strip('"')
-
-    return Element(name=tag_name, text=text, attributes=attributes_dict, paired=paired)
+    return Element(name=tag_name, attributes=attributes_dict)
 
 
 class Element:
-    def __init__(self, name='', depth=-1, attributes=None, content=None, paired=None, text=''):
+    def __init__(self, name='', attributes=None, content=None):
+        self.name = name
         self.attributes = dict()
         self.content = list()
-        self.name = name
-        self.depth = depth
-        self.paired = paired
-        self.text = text
         if attributes:
             self.attributes = attributes
         if content:
             self.content = content
 
-    def get_elements(self, elem_name, recursive=True):
+    def add(self, content, depth):
+        if depth < 0:
+            raise ValueError('depth too high')
+        if depth == 0:
+            if isinstance(content, Element) or isinstance(content, str):
+                self.content.append(content)
+            else:
+                raise ValueError('Added content should be one of the following types: string, Element.')
+        else:
+            # todo: rewrite this stupid looking code:
+            for item in reversed(self.content):
+                if isinstance(item, Element):
+                    item.add(content, depth-1)
+                    break
+
+    def get_elements(self, name, recursive=True):
         elements = list()
-        for content in self.content:
-            if content.name == elem_name:
+        for content in (item for item in self.content if isinstance(item, Element)):
+            if content.name == name:
                 elements.append(content)
             if recursive:
-                elements.extend(content.get_elements(elem_name))
+                elements.extend(content.get_elements(name))
         return elements
 
     def remove(self, name=None, attribute=None, recursive=True):
@@ -154,17 +167,15 @@ class Element:
                     return False
 
         for i, content in enumerate(self.content):
-            if (content.name == name or not name) and attr_match(content.attributes):
-                del self.content[i]
-                continue
-            if recursive:
-                content.remove(name=name, attribute=attribute, recursive=recursive)
+            if isinstance(content, Element):
+                if (content.name == name or not name) and attr_match(content.attributes):
+                    del self.content[i]
+                    continue
+                if recursive:
+                    content.remove(name=name, attribute=attribute, recursive=recursive)
 
-    def append(self, item):
-        self.content.append(item)
-
-    def extend(self, item):
-        self.content.extend(item)
+    def __len__(self):
+        return len(self.content)
 
     def __iter__(self):
         for item in self.content:
@@ -173,46 +184,56 @@ class Element:
     def __getitem__(self, index):
         return self.content[index]
 
-    def to_text(self, exclude=None):
-        if not exclude:
-            exclude = []
-        if isinstance(exclude, str):
-            exclude = [exclude]
-
-        text = self.text
-
+    def __str__(self):
+        text = ''
         if self.name == 'br':
             text = '\n' + text
-        if self.name == 'title':
-            return ''
-
+        if self.name in ['head']:
+            return text
+        if 'style' in self.attributes and 'display:none' in self.attributes['style']:
+            return text
         for content in self.content:
-            if content.name not in exclude:
-                text += content.to_text()
+            text += str(content)
         return text
 
-    @staticmethod
-    def _indent(string):
-        new_string = ''
-        for line in (line for line in string.split('\n') if line):
-            line = '    ' + line + '\n'
-            new_string += line
-        return new_string
-
-    def __str__(self):
-        content_string = ''
-        for element in self:
-            content_string += str(element)
-        content_string = self._indent(content_string)
+    def to_html(self):
+        def indent(string):
+            new_string = ''
+            for line in (line for line in string.split('\n') if line):
+                line = '    ' + line + '\n'
+                new_string += line
+            return new_string
 
         attr_string = ''
         for attr in self.attributes:
             attr_string += ' ' + attr + '="' + self.attributes[attr] + '"'
 
-        text = self.text
+        content_string = ''
+        for item in self:
+            if isinstance(item, str):
+                content_string += item + '\n'
+            else:
+                content_string += item.to_html()
+        content_string = indent(content_string)
 
         end_tag = ''
-        if self.paired:
+        if self.name not in non_closing_tag_names:
             end_tag = '</' + self.name + '>\n'
 
-        return '<' + self.name + attr_string + '>\n' + text + content_string + end_tag
+        return '<' + self.name + attr_string + '>\n' + content_string + end_tag
+
+    def copy(self):
+        element_copy = Element()
+        for item in self.content:
+            if not isinstance(item, str):
+                element_copy.content.append(item.copy())
+            else:
+                element_copy.content.append(item)
+        return element_copy
+
+    def get_links(self):
+        links = list()
+        for link in self.get_elements('a'):
+            if 'href' in link.attributes:
+                links.append(link.attributes['href'])
+        return links
