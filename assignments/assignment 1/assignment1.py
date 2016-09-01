@@ -1,6 +1,7 @@
 import numpy as np
 from math import pi
 from packages import xlrd
+import matplotlib.pyplot as plt
 
 
 def ass1_1_1():
@@ -78,18 +79,37 @@ def ass1_1_2():
             eig_val, eig_vec = 'Could not be calculated', 'Could not be calculated'
         print('Eigen value ' + matrix_name + ' =', eig_val)
         print('Eigen vector ' + matrix_name + ' =\n', eig_vec)
-
     print()
 
 
 def ass1_2_1():
+    # a.
     filename = 'data/nanonose.xls'
     workbook = xlrd.open_workbook(filename)
-    sheet = workbook.sheet_by_index(1)
-    print(sheet.col_values(6))
+    sheet = workbook.sheet_by_index(0)
+    x = np.zeros((90, 8))
+    for col_nr in range(8):
+        col = sheet.col_values(col_nr+3)[2:]
+        x[:, col_nr] = col
+    print('a. X =\n', x)
+
+    # b.
+    plt.scatter(x[:, 0], x[:, 1])
+    plt.show()
+    plt.scatter(x[:, 2], x[:, 3])
+    plt.show()
+    plt.scatter(x[:, 4], x[:, 5])
+    plt.show()
+    plt.scatter(x[:, 6], x[:, 7])
+    plt.show()
+
+
+def ass1_2_2():
+    pass
 
 
 if __name__ == '__main__':
     # ass1_1_1()
     # ass1_1_2()
-    ass1_2_1()
+    # ass1_2_1()
+    ass1_2_2()

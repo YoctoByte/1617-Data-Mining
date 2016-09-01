@@ -22,7 +22,4 @@ some attributes to collect:
  - std molar entropy
  - std enthalpy of formation
  - gibbs free energy
-
-
-
 """
