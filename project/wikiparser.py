@@ -53,7 +53,10 @@ def parse_info_table(info_table):
         row.remove('sup')
         if len(row) == 2:
             key = str(row[0])
-            list_element = row[1].get_elements('ul')
+            try:
+                list_element = row[1].get_elements('ul')
+            except AttributeError:
+                continue
             if list_element:
                 value = list()
                 for item in list_element[0]:
@@ -104,7 +107,8 @@ def page_parser_thread():
             continue
         TESTED_URLS.add(current_url)
         try:
-            page = htmlparser.parse_from_url(current_url)
+            page_string = requests.get(current_url).content.decode('utf-8')
+            page = htmlparser.parse_from_string(page_string)
         except ValueError:
             continue
         info_table = get_info_table(page)
@@ -113,6 +117,8 @@ def page_parser_thread():
             for key, value in parse_info_table(info_table):
                 table_data[key] = value
             DATABASE[current_url.split('/')[-1]] = table_data
+            with open('data/downloads' + current_url.split('/')[-1] + '.html', 'w') as file:
+                file.write(page_string)
 
             wiki_domain = 'https://en.wikipedia.org'
             for link in page.get_elements('a'):
@@ -158,7 +164,7 @@ def run():
     load_data()
     Thread(target=file_update_thread).start()
     Thread(target=input_thread).start()
-    for _ in range(15):
+    for _ in range(30):
         Thread(target=page_parser_thread).start()
 
 
