@@ -117,7 +117,7 @@ def page_parser_thread():
             for key, value in parse_info_table(info_table):
                 table_data[key] = value
             DATABASE[current_url.split('/')[-1]] = table_data
-            with open('data/downloads' + current_url.split('/')[-1] + '.html', 'w') as file:
+            with open('data/downloads/' + current_url.split('/')[-1] + '.html', 'w') as file:
                 file.write(page_string)
 
             wiki_domain = 'https://en.wikipedia.org'
