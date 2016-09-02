@@ -183,11 +183,11 @@ class HTMLPage(HTMLElement):
                         depth -= 1
                 else:  # Token is a start-tag
                     element = self.parse_tag_token(token)
-                    self.content.add(element, depth)
+                    self.add(element, depth)
                     if element.name not in non_closing_tag_names:
                         depth += 1
             else:  # Token is text
-                self.content.add(token, depth)
+                self.add(token, depth)
 
     @staticmethod
     def tokenize(html_string):
