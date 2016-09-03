@@ -182,12 +182,10 @@ def download_page(url):
         output_file.write(html_string)
 
 
-# download_page('https://en.wikipedia.org/wiki/Adenosine_triphosphate')
-# page = htmlparser.parse_from_file('data/downloads/Methane.html')
-# info_table = get_info_table(page)
-# for key, value in parse_info_table(info_table):
-#     print('--------')
-#     print(key, '-', value)
-# get_initial_urls()
+def rename_database():
+    for filename in os.listdir('data/downloads'):
+        pass
+        # todo
+
 wikiparser = WikipediaParser()
 # wikiparser.run()

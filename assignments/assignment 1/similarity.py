@@ -2,6 +2,32 @@ import numpy as np
 from scipy.stats import zscore
 
 
+def similarity2(matrix1, matrix2, method):
+    matrix1 = np.mat(matrix1)
+    matrix2 = np.mat(matrix2)
+    N1, M = np.shape(matrix1)
+    N2, M = np.shape(matrix2)
+
+    method = method[:3].lower()
+    if method == 'smc':  # SMC
+        X, Y = binarize(X, Y)
+        sim = ((X * Y.T) + ((1 - X) * (1 - Y).T)) / M
+    elif method == 'jac':  # Jaccard
+        X, Y = binarize(X, Y)
+        sim = (X * Y.T) / (M - (1 - X) * (1 - Y).T)
+    elif method == 'ext':  # Extended Jaccard
+        XYt = X * Y.T
+        sim = XYt / (np.log(np.exp(sum(np.power(X.T, 2))).T * np.exp(sum(np.power(Y.T, 2)))) - XYt)
+    elif method == 'cos':  # Cosine
+        sim = (X * Y.T) / (np.sqrt(sum(np.power(X.T, 2))).T * np.sqrt(sum(np.power(Y.T, 2))))
+    elif method == 'cor':  # Correlation
+        X_ = zscore(X, axis=1, ddof=1)
+        Y_ = zscore(Y, axis=1, ddof=1)
+        sim = (X_ * Y_.T) / (M - 1)
+    else:
+        raise ValueError('Unknown method...')
+    return sim
+
 def similarity(X, Y, method):
     """
     SIMILARITY Computes similarity matrices
@@ -56,7 +82,7 @@ def similarity(X, Y, method):
 
 def binarize(X, Y=None):
     """ Force binary representation of the matrix, according to X>median(X) """
-    if Y == None:
+    if Y is None:
         X = np.matrix(X)
         Xmedians = np.ones((np.shape(X)[0], 1)) * np.median(X, 0)
         Xflags = X > Xmedians

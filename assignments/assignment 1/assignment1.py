@@ -83,6 +83,7 @@ def ass1_1_2():
 
 
 def ass1_2_1():
+    print('assignment 1.2.1')
     # a.
     filename = 'data/nanonose.xls'
     workbook = xlrd.open_workbook(filename)
@@ -105,6 +106,30 @@ def ass1_2_1():
 
 
 def ass1_2_2():
+    print('assignment 1.2.2')
+
+    def pca(matrix):
+        mu = np.mean(matrix, axis=0)
+        zero_mean_data = matrix - (mu * np.ones((matrix.shape[0], 1)))
+        u, s, v = np.linalg.svd(zero_mean_data)
+        print(u.shape, s.shape, v.shape)
+        print(s)
+        for _ in range(matrix.shape[1]):
+            pass
+
+    filename = 'data/nanonose.xls'
+    workbook = xlrd.open_workbook(filename)
+    sheet = workbook.sheet_by_index(0)
+    x = np.zeros((90, 8))
+    for col_nr in range(8):
+        col = sheet.col_values(col_nr + 3)[2:]
+        x[:, col_nr] = col
+
+    pca(x)
+    # todo: Ask student assistant about PCA
+
+
+def ass1_3_1():
     pass
 
 
