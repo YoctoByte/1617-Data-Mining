@@ -19,14 +19,6 @@ def count_keys():
 
 
 def load_data(filename):
-    # data_dir = 'data/wiki_data_tables/'
-    # for filename in os.listdir(data_dir):
-    #     with open(data_dir + filename) as json_file:
-    #         json_data = json_file.read()
-    #         molecule_data = json.loads(json_data)
-    #         DATABASE[filename] = molecule_data
-    # with open('data/database_raw.json', 'w') as json_file:
-    #     json_file.write(json.dumps(DATABASE, separators=(',', ':'), sort_keys=True, indent=4))
     global DATABASE
     with open(filename) as data_file:
         DATABASE = json.loads(data_file.read())
