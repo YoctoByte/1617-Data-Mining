@@ -6,12 +6,12 @@ import json
 import os
 
 
-DATA_LOCATION = '/media/dwout/75F9-FA9C/1617-12-Data-Mining/project/data/'
+DATA_ROOT = '/media/dwout/75F9-FA9C/1617-12-Data-Mining/project/data/'
 
 
 def wikipedia_html_files():
-    for filename in os.listdir('data/downloads'):
-        yield 'data/downloads/'+filename
+    for filename in os.listdir(DATA_ROOT+'wikipedia/html_pages'):
+        yield DATA_ROOT+'wikipedia/html_pages/'+filename
 
 
 class WikipediaPage(HTMLParser.HTMLPage):
@@ -29,9 +29,9 @@ class WikipediaParser:
     def __init__(self):
         self.terminate = False
 
-        self.data_filename = DATA_LOCATION+'database_raw02.json'
-        self.urls_done_filename = DATA_LOCATION+'tested_urls'
-        self.urls_to_do_filename = DATA_LOCATION+'waitlist_urls'
+        self.data_filename = DATA_ROOT+'database_raw02.json'
+        self.urls_done_filename = DATA_ROOT+'tested_urls'
+        self.urls_to_do_filename = DATA_ROOT+'waitlist_urls'
 
         self.urls_done = set()
         self.urls_to_do = set()
@@ -39,9 +39,9 @@ class WikipediaParser:
         # wikipedia info table as keys.
         self.downloaded_files = set()
 
-        self.load_data()
+        self._load_data()
 
-    def load_data(self):
+    def _load_data(self):
         with open(self.urls_done_filename) as file:
             for line in file:
                 self.urls_done.add(line.strip())
@@ -56,7 +56,7 @@ class WikipediaParser:
         print('length of wait-list: ' + str(len(self.urls_to_do)))
         print('length of tested urls: ' + str(len(self.urls_done)))
 
-    def save_data(self):
+    def _save_data(self):
         with open(self.urls_done_filename, 'w') as file:
             file_string = ''
             for url in self.urls_done.copy():
@@ -94,7 +94,7 @@ class WikipediaParser:
                 output_file.write(url + '\n')
 
     @staticmethod
-    def parse_info_table(info_table):
+    def _parse_info_table(info_table):
         for row in info_table:
             key = None
             value = None
@@ -121,7 +121,7 @@ class WikipediaParser:
             if key and value:
                 yield key, value
 
-    def page_parser_thread(self):
+    def _page_parser_thread(self):
         while not self.terminate:
             current_url = self.urls_to_do.pop()
             if current_url in self.urls_done:
@@ -148,7 +148,7 @@ class WikipediaParser:
             info_table = page.get_info_table()
             if info_table:
                 table_data = dict()
-                for key, value in self.parse_info_table(info_table):
+                for key, value in self._parse_info_table(info_table):
                     table_data[key] = value
                 self.data[molecule_name] = table_data
                 if not os.path.exists('data/' + molecule_name + '.html'):
@@ -161,27 +161,27 @@ class WikipediaParser:
                             self.urls_to_do.add(wiki_domain+link)
                 print(current_url.split('/')[-1] + ' parsed to database.')
 
-    def save_data_thread(self):
+    def _save_data_thread(self):
         while not self.terminate:
             sleep(5)
-            self.save_data()
+            self._save_data()
             for filename in os.listdir('data/downloads'):
                 self.downloaded_files.add(filename.rsplit('.', 1)[0])
 
-    def input_thread(self):
+    def _input_thread(self):
         while not self.terminate:
             inp = input('Enter command: ')
             if inp.lower() in ['quit', 'q']:
                 self.terminate = True
 
     def run(self):
-        t_data = Thread(target=self.save_data_thread)
+        t_data = Thread(target=self._save_data_thread)
         t_data.start()
-        t_input = Thread(target=self.input_thread)
+        t_input = Thread(target=self._input_thread)
         t_input.start()
         t_parsers = list()
         for _ in range(40):
-            t_parser = Thread(target=self.page_parser_thread)
+            t_parser = Thread(target=self._page_parser_thread)
             t_parser.start()
             t_parsers.append(t_parser)
 
@@ -204,8 +204,28 @@ def get_urls_from_tables(attribute):
                     for a in a_list:
                         if 'href' in a.attributes:
                             urls.append(a.attributes['href'])
-                    print(filename, urls)
+                    yield filename.rsplit('/', 1)[-1][0:-5], urls
                     continue
+
+
+def get_chemspider_urls():
+    with open(DATA_ROOT+'chemspider/urls.csv', 'w') as file:
+        for molecule, urls in get_urls_from_tables('chemspider'):
+            molecule_string = molecule.replace(',', '')
+            for url in urls:
+                molecule_string += ', ' + url.replace(',', '')
+            file.write(molecule_string+'\n')
+            print(molecule_string)
+
+
+def get_pubchem_urls():
+    with open(DATA_ROOT+'pubchem/urls.csv', 'w') as file:
+        for molecule, urls in get_urls_from_tables('pubchem'):
+            molecule_string = molecule.replace(',', '')
+            for url in urls:
+                molecule_string += ', ' + url.replace(',', '')
+            file.write(molecule_string+'\n')
+            print(molecule_string)
 
 
 def download_page(url):
@@ -223,5 +243,5 @@ def rename_database():
 
 # wikiparser = WikipediaParser()
 # wikiparser.run()
-get_urls_from_tables('chemspider')
-get_urls_from_tables('pubchem')
+# get_urls_from_tables('pubchem')
+get_pubchem_urls()
