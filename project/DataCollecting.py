@@ -244,4 +244,5 @@ def rename_database():
 # wikiparser = WikipediaParser()
 # wikiparser.run()
 # get_urls_from_tables('pubchem')
-get_pubchem_urls()
+# get_pubchem_urls()
+download_page('https://pubchem.ncbi.nlm.nih.gov/compound/294764')
