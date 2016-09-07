@@ -133,6 +133,10 @@ def ass1_3_1():
     pass
 
 
+def ass1_3_2():
+    pass
+
+
 if __name__ == '__main__':
     # ass1_1_1()
     # ass1_1_2()

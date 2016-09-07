@@ -6,6 +6,9 @@ import json
 import os
 
 
+DATA_LOCATION = '/media/dwout/75F9-FA9C/1617-12-Data-Mining/project/data/'
+
+
 def wikipedia_html_files():
     for filename in os.listdir('data/downloads'):
         yield 'data/downloads/'+filename
@@ -25,14 +28,17 @@ class WikipediaPage(HTMLParser.HTMLPage):
 class WikipediaParser:
     def __init__(self):
         self.terminate = False
-        self.data_filename = 'data/database_raw02.json'
-        self.urls_done_filename = 'data/tested_urls'
-        self.urls_to_do_filename = 'data/waitlist_urls'
+
+        self.data_filename = DATA_LOCATION+'database_raw02.json'
+        self.urls_done_filename = DATA_LOCATION+'tested_urls'
+        self.urls_to_do_filename = DATA_LOCATION+'waitlist_urls'
+
         self.urls_done = set()
         self.urls_to_do = set()
         self.data = dict()  # dict with molecules as keys. Molecule values are also dicts, with properties from the
         # wikipedia info table as keys.
         self.downloaded_files = set()
+
         self.load_data()
 
     def load_data(self):
@@ -213,6 +219,7 @@ def rename_database():
     for filename in os.listdir('data/downloads'):
         pass
         # todo
+
 
 # wikiparser = WikipediaParser()
 # wikiparser.run()
