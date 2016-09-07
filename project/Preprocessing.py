@@ -35,5 +35,9 @@ def load_data(filename):
             DATABASE[new_key] = DATABASE.pop(key)
 
 
-load_data('data/database_raw.json')
+def get_chemspider_links():
+    pass
+
+
+load_data('data/database_raw02.json')
 count_keys()
