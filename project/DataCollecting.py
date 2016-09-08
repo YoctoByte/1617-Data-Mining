@@ -1,4 +1,4 @@
-from project import HTMLParser
+from project import HTMLParser, PubChemAPI
 import requests
 from threading import Thread
 from time import sleep
