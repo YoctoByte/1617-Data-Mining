@@ -1,5 +1,5 @@
-import requests
 import json
+import requests
 
 
 PUBCHEM_ROOT_DIR = 'data/pubchem/'

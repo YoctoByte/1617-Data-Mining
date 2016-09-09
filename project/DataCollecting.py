@@ -1,9 +1,9 @@
 from project import HTMLParser, PubChemAPI
-import requests
 from threading import Thread
 from time import sleep
 import json
 import os
+import requests
 
 
 DATA_ROOT = '/media/dwout/75F9-FA9C/1617-12-Data-Mining/project/data/'
@@ -15,12 +15,16 @@ FN_WIKI_URLS_INITIAL = DIR_WIKI_ROOT+'initial_urls.csv'
 FN_WIKI_URLS_DONE = DIR_WIKI_ROOT+'tested_urls.csv'
 FN_WIKI_URLS_TO_DO = DIR_WIKI_ROOT+'waitlist_urls.csv'
 
-DIR_PUBCHEM_ROOT = DATA_ROOT+'pubchem'
+DIR_PUBCHEM_ROOT = DATA_ROOT+'pubchem/'
+FN_PUBCHEM_URLS = DIR_PUBCHEM_ROOT+'urls.csv'
+
+DIR_CHEMSPIDER_ROOT = DATA_ROOT+'chemspider/'
+FN_CHEMSPIDER_URLS = DIR_CHEMSPIDER_ROOT+'urls.csv'
 
 
 class WikipediaPage(HTMLParser.HTMLPage):
     """
-    inherits functions from HTMLPage and adds function to get info table from a wikipedia molecule page.
+    Inherits functions from HTMLPage and adds function to get info table from a wikipedia molecule page.
     """
     def get_info_table(self):
         for table in self.get_elements('table'):
@@ -40,7 +44,14 @@ class WikipediaParser:
         self.urls_to_do = set()
         self.data = dict()  # dict with molecules as keys. Molecule values are also dicts, with properties from the
         # wikipedia info table as keys.
-        self.downloaded_files = set()
+        self.downloaded_pages = set()
+
+        for directory in [DIR_WIKI_ROOT, DIR_WIKI_PAGES]:
+            if not os.path.exists(directory):
+                os.mkdir(directory)
+        for filename in [FN_WIKI_URLS_TO_DO, FN_WIKI_URLS_DONE, FN_WIKI_DATABASE_RAW]:
+            if not os.path.exists(filename):
+                open(filename, 'w')
 
         self._load_data()
 
@@ -54,7 +65,7 @@ class WikipediaParser:
         with open(FN_WIKI_DATABASE_RAW) as json_file:
             self.data = json.loads(json_file.read())
         for filename in os.listdir(DIR_WIKI_PAGES):
-            self.downloaded_files.add(filename.rsplit('.', 1)[0])
+            self.downloaded_pages.add(filename.rsplit('.', 1)[0])
         print('number of molecules: ' + str(len(self.data)))
         print('length of wait-list: ' + str(len(self.urls_to_do)))
         print('length of tested urls: ' + str(len(self.urls_done)))
@@ -113,7 +124,7 @@ class WikipediaParser:
 
             molecule_name = current_url.split('/')[-1]
             try:
-                if molecule_name in self.downloaded_files:
+                if molecule_name in self.downloaded_pages:
                     with open('data/downloads/' + molecule_name + '.html') as file:
                         page_string = file.read()
                 else:
@@ -149,7 +160,7 @@ class WikipediaParser:
             sleep(5)
             self._save_data()
             for filename in os.listdir('data/downloads'):
-                self.downloaded_files.add(filename.rsplit('.', 1)[0])
+                self.downloaded_pages.add(filename.rsplit('.', 1)[0])
 
     def _input_thread(self):
         while not self.terminate:
@@ -157,13 +168,13 @@ class WikipediaParser:
             if inp.lower() in ['quit', 'q']:
                 self.terminate = True
 
-    def run(self):
+    def run(self, nr_of_threads=40):
         t_data = Thread(target=self._save_data_thread)
         t_data.start()
         t_input = Thread(target=self._input_thread)
         t_input.start()
         t_parsers = list()
-        for _ in range(40):
+        for _ in range(nr_of_threads):
             t_parser = Thread(target=self._page_parser_thread)
             t_parser.start()
             t_parsers.append(t_parser)
@@ -189,7 +200,7 @@ def collect_initial_urls(wikipedia_urls):
             output_file.write(url + '\n')
 
 
-def get_urls_from_tables(attribute):
+def get_urls_from_wiki_tables(attribute):
     for filename in os.listdir(DIR_WIKI_PAGES):
         wiki_page = WikipediaPage(filename=filename)
         info_table = wiki_page.get_info_table()
@@ -207,8 +218,8 @@ def get_urls_from_tables(attribute):
 
 
 def collect_chemspider_urls():
-    with open(DATA_ROOT+'chemspider/urls.csv', 'w') as file:
-        for molecule, urls in get_urls_from_tables('chemspider'):
+    with open(FN_CHEMSPIDER_URLS, 'w') as file:
+        for molecule, urls in get_urls_from_wiki_tables('chemspider'):
             molecule_string = molecule.replace(',', '')
             for url in urls:
                 molecule_string += ', ' + url.replace(',', '')
@@ -217,13 +228,27 @@ def collect_chemspider_urls():
 
 
 def collect_pubchem_urls():
-    with open(DATA_ROOT+'pubchem/urls.csv', 'w') as file:
-        for molecule, urls in get_urls_from_tables('pubchem'):
+    with open(FN_PUBCHEM_URLS, 'w') as file:
+        for molecule, urls in get_urls_from_wiki_tables('pubchem'):
             molecule_string = molecule.replace(',', '')
             for url in urls:
                 molecule_string += ', ' + url.replace(',', '')
             file.write(molecule_string+'\n')
             print(molecule_string)
+
+
+def get_pubchem_ids_from_file():
+    with open(FN_PUBCHEM_URLS) as file:
+        data = dict()
+        for line in file:
+            urls = line.strip().split(',')
+            molecule = urls.pop(0)
+            data[molecule] = list()
+            for url in urls:
+                pubchem_id = url.rsplit('/', 1)[-1]
+                if pubchem_id.isnumeric():
+                    data[molecule].append(pubchem_id)
+        return data
 
 
 def collect_pubchem_data(pubchem_id_list):
