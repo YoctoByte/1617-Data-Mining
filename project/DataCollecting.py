@@ -8,13 +8,20 @@ import os
 
 DATA_ROOT = '/media/dwout/75F9-FA9C/1617-12-Data-Mining/project/data/'
 
+DIR_WIKI_ROOT = DATA_ROOT+'wikipedia/'
+DIR_WIKI_PAGES = DIR_WIKI_ROOT+'html_pages/'
+FN_WIKI_DATABASE_RAW = DIR_WIKI_ROOT+'database_raw.json'
+FN_WIKI_URLS_INITIAL = DIR_WIKI_ROOT+'initial_urls.csv'
+FN_WIKI_URLS_DONE = DIR_WIKI_ROOT+'tested_urls.csv'
+FN_WIKI_URLS_TO_DO = DIR_WIKI_ROOT+'waitlist_urls.csv'
 
-def wikipedia_html_files():
-    for filename in os.listdir(DATA_ROOT+'wikipedia/html_pages'):
-        yield DATA_ROOT+'wikipedia/html_pages/'+filename
+DIR_PUBCHEM_ROOT = DATA_ROOT+'pubchem'
 
 
 class WikipediaPage(HTMLParser.HTMLPage):
+    """
+    inherits functions from HTMLPage and adds function to get info table from a wikipedia molecule page.
+    """
     def get_info_table(self):
         for table in self.get_elements('table'):
             is_info_table = True
@@ -29,10 +36,6 @@ class WikipediaParser:
     def __init__(self):
         self.terminate = False
 
-        self.data_filename = DATA_ROOT+'database_raw02.json'
-        self.urls_done_filename = DATA_ROOT+'tested_urls'
-        self.urls_to_do_filename = DATA_ROOT+'waitlist_urls'
-
         self.urls_done = set()
         self.urls_to_do = set()
         self.data = dict()  # dict with molecules as keys. Molecule values are also dicts, with properties from the
@@ -42,56 +45,36 @@ class WikipediaParser:
         self._load_data()
 
     def _load_data(self):
-        with open(self.urls_done_filename) as file:
+        with open(FN_WIKI_URLS_DONE) as file:
             for line in file:
                 self.urls_done.add(line.strip())
-        with open(self.urls_to_do_filename) as file:
+        with open(FN_WIKI_URLS_TO_DO) as file:
             for line in file:
                 self.urls_to_do.add(line.strip())
-        with open(self.data_filename) as json_file:
+        with open(FN_WIKI_DATABASE_RAW) as json_file:
             self.data = json.loads(json_file.read())
-        for filename in wikipedia_html_files():
+        for filename in os.listdir(DIR_WIKI_PAGES):
             self.downloaded_files.add(filename.rsplit('.', 1)[0])
         print('number of molecules: ' + str(len(self.data)))
         print('length of wait-list: ' + str(len(self.urls_to_do)))
         print('length of tested urls: ' + str(len(self.urls_done)))
 
     def _save_data(self):
-        with open(self.urls_done_filename, 'w') as file:
+        with open(FN_WIKI_URLS_DONE, 'w') as file:
             file_string = ''
             for url in self.urls_done.copy():
                 file_string += url + '\n'
             file.write(file_string)
-        with open(self.urls_to_do_filename, 'w') as file:
+        with open(FN_WIKI_URLS_TO_DO, 'w') as file:
             file_string = ''
             for url in self.urls_to_do.copy():
                 file_string += url + '\n'
             file.write(file_string)
-        with open(self.data_filename, 'w') as json_file:
+        with open(FN_WIKI_DATABASE_RAW, 'w') as json_file:
             json_file.write(json.dumps(self.data, separators=(',', ':'), sort_keys=True, indent=4))
         print('number of molecules: ' + str(len(self.data)))
         print('length of waitlist: ' + str(len(self.urls_to_do)))
         print('length of tested urls: ' + str(len(self.urls_done)))
-
-    @staticmethod
-    def get_initial_urls():
-        initial_urls_filename = 'data/initial_urls'
-
-        wiki_domain = 'https://en.wikipedia.org'
-        data_urls = ['/wiki/Dictionary_of_chemical_formulas',
-                     '/wiki/List_of_biomolecules',
-                     '/wiki/List_of_inorganic_compounds']
-
-        initial_urls = set()
-        for data_url in data_urls:
-            page = WikipediaPage(url=wiki_domain+data_url)
-            for link in page.get_links():
-                if link[:5] == '/wiki':
-                    link = link.rsplit('#', 1)[0]
-                    initial_urls.add(wiki_domain+link)
-        with open(initial_urls_filename, 'w') as output_file:
-            for url in initial_urls:
-                output_file.write(url + '\n')
 
     @staticmethod
     def _parse_info_table(info_table):
@@ -191,8 +174,23 @@ class WikipediaParser:
             t.join()
 
 
+def collect_initial_urls(wikipedia_urls):
+    wiki_domain = 'https://en.wikipedia.org'
+
+    initial_urls = set()
+    for data_url in wikipedia_urls:
+        page = WikipediaPage(url=wiki_domain+data_url)
+        for link in page.get_links():
+            if link[:5] == '/wiki':
+                link = link.split('#', 1)[0]
+                initial_urls.add(wiki_domain+link)
+    with open(FN_WIKI_URLS_INITIAL, 'w') as output_file:
+        for url in initial_urls:
+            output_file.write(url + '\n')
+
+
 def get_urls_from_tables(attribute):
-    for filename in wikipedia_html_files():
+    for filename in os.listdir(DIR_WIKI_PAGES):
         wiki_page = WikipediaPage(filename=filename)
         info_table = wiki_page.get_info_table()
         for row in info_table:
@@ -208,7 +206,7 @@ def get_urls_from_tables(attribute):
                     continue
 
 
-def get_chemspider_urls():
+def collect_chemspider_urls():
     with open(DATA_ROOT+'chemspider/urls.csv', 'w') as file:
         for molecule, urls in get_urls_from_tables('chemspider'):
             molecule_string = molecule.replace(',', '')
@@ -218,7 +216,7 @@ def get_chemspider_urls():
             print(molecule_string)
 
 
-def get_pubchem_urls():
+def collect_pubchem_urls():
     with open(DATA_ROOT+'pubchem/urls.csv', 'w') as file:
         for molecule, urls in get_urls_from_tables('pubchem'):
             molecule_string = molecule.replace(',', '')
@@ -228,21 +226,42 @@ def get_pubchem_urls():
             print(molecule_string)
 
 
+def collect_pubchem_data(pubchem_id_list):
+    def collecting_thread():
+        while True:
+            try:
+                pubchem_id = pubchem_id_list.pop()
+            except IndexError:
+                break
+
+            try:
+                pubchem_data_obj = PubChemAPI.PubChemPage(pubchem_id)
+                print(pubchem_data_obj.iupac_name())
+                pubchem_data_obj.save()
+            except (KeyError, UnicodeDecodeError):
+                print(pubchem_id + ' DATA NOT COLLECTED!')
+
+    collectors = list()
+    for _ in range(10):
+        thread = Thread(target=collecting_thread)
+        thread.start()
+        collectors.append(thread)
+
+    for t in collectors:
+        t.join()
+
+
 def download_page(url):
     page = requests.get(url)
     html_string = page.content.decode('utf-8')
-    with open('data/downloads/' + url.split('/')[-1] + '.html', 'w') as output_file:
+    with open('data/downloads/'+url, 'w') as output_file:
         output_file.write(html_string)
 
 
-def rename_database():
-    for filename in os.listdir('data/downloads'):
-        pass
-        # todo
-
-
-# wikiparser = WikipediaParser()
-# wikiparser.run()
-# get_urls_from_tables('pubchem')
-# get_pubchem_urls()
-download_page('https://pubchem.ncbi.nlm.nih.gov/compound/294764')
+if __name__ == '__main__':
+    # wikiparser = WikipediaParser()
+    # wikiparser.run()
+    # get_urls_from_tables('pubchem')
+    # get_pubchem_urls()
+    # download_page('https://pubchem.ncbi.nlm.nih.gov/compound/294764')
+    pass
